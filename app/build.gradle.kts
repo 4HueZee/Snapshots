@@ -68,4 +68,7 @@ dependencies {
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
     implementation(libs.androidx.datastore)
+
+    // Agnostic Roster Integration
+    implementation(project(":agnostic"))
 }

@@ -24,7 +24,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "Battle Barge"
 include(":app")
-include(":roster")
+include(":agnostic")
 
 // --- Composite Build Hooks for Future Standalone Modules ---
 // To develop a new module (e.g., a Game) in a separate directory and 
