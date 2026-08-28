@@ -1,0 +1,14 @@
+- [ ] **Infrastructure & Dependencies**
+    - [ ] Add adaptive and testing dependencies to `libs.versions.toml` and `build.gradle.kts`
+    - [ ] Configure Firestore persistence in `UserRepository.kt`
+- [ ] **Presence System**
+    - [ ] Update `UserProfile.kt` with presence fields
+    - [ ] Implement `PresenceRepository.kt`
+    - [ ] Wire up `PresenceRepository` in `MainActivity.kt`
+    - [ ] Update `FriendsModule.kt` to display friend online status
+- [ ] **UI Modernization**
+    - [ ] Audit and fix Edge-to-Edge insets in `MainScreen.kt` and `LoginScreen.kt`
+    - [ ] Implement Adaptive List-Detail in `FriendsModule.kt`
+- [ ] **Quality Assurance**
+    - [ ] Create `UserRepositoryTest.kt`
+    - [ ] Verify build and run on different device configurations
