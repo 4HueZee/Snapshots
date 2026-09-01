@@ -24,8 +24,8 @@ jobs:
           curl -L $GALLERY_URL -o gallery.json
 
           # 2. DEFINE YOUR KEYWORDS (Space separated)
-          KEYWORDS="40k heresy sigmar kill-team"
-
+          KEYWORDS="wh40k horus sigmar killteam warhammer"
+          
           mkdir -p output
           
           # 3. USE 'JQ' TO PARSE JSON AND LOOP
