@@ -24,35 +24,38 @@ jobs:
           curl -L $GALLERY_URL -o gallery.json
 
           # 2. DEFINE YOUR KEYWORDS (Case-insensitive)
-          KEYWORDS="40k heresy sigmar kill-team"
+          KEYWORDS="wh40k horus sigmar kill-team"
 
           mkdir -p output
           
-          # 3. EXTRACT LOCATIONS AND LOOP
-          REPOS=$(cat gallery.json | jq -r '.repositories[].location')
+          # 3. EXTRACT ID AND URL USING JQ
+          # We use -c to get one JSON object per line for easier looping
+          REPOS=$(cat gallery.json | jq -c '.repositories[]')
 
-          for REPO_URL in $REPOS; do
+          while read -r REPO_OBJ; do
+            ID=$(echo $REPO_OBJ | jq -r '.name')
+            # Extract the base GitHub URL from the download link
+            # Transforms: .../BSData/repo/releases/... -> https://github.com/BSData/repo
+            URL=$(echo $REPO_OBJ | jq -r '.repositoryUrl' | sed 's/\/releases\/latest\/download\/.*//')
+
             # Filter Logic
             MATCH=false
             for KW in $KEYWORDS; do
-              if [[ "${REPO_URL,,}" == *"$KW"* ]]; then MATCH=true; fi
+              if [[ "${ID,,}" == *"$KW"* ]]; then MATCH=true; fi
             done
 
             if [ "$MATCH" = true ]; then
-              # Extract clean ID (e.g., 'wh40k-10th' from the URL)
-              REPO_ID=$(basename $REPO_URL)
-              echo "::group::Processing $REPO_ID"
+              echo "::group::Processing $ID"
+              echo "Source: $URL"
               
-              # Clone using the full URL from the gallery
-              git clone --depth 1 $REPO_URL temp_rules
-              
-              # Run the Shaper
-              python shaper.py --source temp_rules --output output/$REPO_ID.db --id $REPO_ID
+              # Clone and Shape
+              git clone --depth 1 $URL temp_rules
+              python shaper.py --source temp_rules --output output/$ID.db --id $ID
               
               rm -rf temp_rules
               echo "::endgroup::"
             fi
-          done
+          done <<< "$REPOS"
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
