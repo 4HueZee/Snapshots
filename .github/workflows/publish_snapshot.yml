@@ -23,25 +23,32 @@ jobs:
           GALLERY_URL="https://github.com/BSData/gallery/releases/latest/download/bsdata.catpkg-gallery.json"
           curl -L $GALLERY_URL -o gallery.json
 
-          # 2. DEFINE YOUR KEYWORDS (Space separated)
-          KEYWORDS="wh40k horus sigmar killteam warhammer"
-          
+          # 2. DEFINE YOUR KEYWORDS (Case-insensitive)
+          KEYWORDS="40k heresy sigmar kill-team"
+
           mkdir -p output
           
-          # 3. USE 'JQ' TO PARSE JSON AND LOOP
+          # 3. EXTRACT LOCATIONS AND LOOP
           REPOS=$(cat gallery.json | jq -r '.repositories[].location')
 
-          for REPO_PATH in $REPOS; do
+          for REPO_URL in $REPOS; do
+            # Filter Logic
             MATCH=false
             for KW in $KEYWORDS; do
-              if [[ "${REPO_PATH,,}" == *"$KW"* ]]; then MATCH=true; fi
+              if [[ "${REPO_URL,,}" == *"$KW"* ]]; then MATCH=true; fi
             done
 
             if [ "$MATCH" = true ]; then
-              REPO_NAME=$(echo $REPO_PATH | cut -d'/' -f2)
-              echo "::group::Processing $REPO_PATH"
-              git clone --depth 1 https://github.com/$REPO_PATH.git temp_rules
-              python shaper.py --source temp_rules --output output/$REPO_NAME.db --id $REPO_NAME
+              # Extract clean ID (e.g., 'wh40k-10th' from the URL)
+              REPO_ID=$(basename $REPO_URL)
+              echo "::group::Processing $REPO_ID"
+              
+              # Clone using the full URL from the gallery
+              git clone --depth 1 $REPO_URL temp_rules
+              
+              # Run the Shaper
+              python shaper.py --source temp_rules --output output/$REPO_ID.db --id $REPO_ID
+              
               rm -rf temp_rules
               echo "::endgroup::"
             fi
