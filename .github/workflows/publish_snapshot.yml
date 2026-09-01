@@ -1,0 +1,61 @@
+name: Auto-Discover and Publish Snapshots
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Daily at midnight
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Proxy Repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Discover and Process Repositories
+        run: |
+          # 1. FETCH THE MASTER GALLERY INDEX
+          GALLERY_URL="https://github.com/BSData/gallery/releases/latest/download/bsdata.catpkg-gallery.json"
+          curl -L $GALLERY_URL -o gallery.json
+
+          # 2. DEFINE YOUR KEYWORDS (Space separated)
+          # Only repos containing these words will be snapshotted
+          KEYWORDS="40k heresy sigmar kill-team"
+
+          mkdir -p output
+          
+          # 3. USE 'JQ' TO PARSE JSON AND LOOP
+          # We extract the 'repository' field from the gallery
+          REPOS=$(cat gallery.json | jq -r '.repositories[].location')
+
+          for REPO_PATH in $REPOS; do
+            # Filter Logic: Check if repo name matches keywords
+            MATCH=false
+            for KW in $KEYWORDS; do
+              if [[ "${REPO_PATH,,}" == *"$KW"* ]]; then MATCH=true; fi
+            done
+
+            if [ "$MATCH" = true ]; then
+              REPO_NAME=$(echo $REPO_PATH | cut -d'/' -f2)
+              echo "::group::Processing $REPO_PATH"
+              
+              # Clone and Shape
+              git clone --depth 1 https://github.com/$REPO_PATH.git temp_rules
+              python shaper.py --source temp_rules --output output/$REPO_NAME.db --id $REPO_NAME
+              
+              rm -rf temp_rules
+              echo "::endgroup::"
+            fi
+          done
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./output
+          publish_branch: gh-pages
