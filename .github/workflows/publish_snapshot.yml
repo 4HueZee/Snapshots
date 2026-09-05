@@ -19,43 +19,34 @@ jobs:
 
       - name: Discover and Process Repositories
         run: |
-          # 1. FETCH THE MASTER GALLERY INDEX
           GALLERY_URL="https://github.com/BSData/gallery/releases/latest/download/bsdata.catpkg-gallery.json"
           curl -L $GALLERY_URL -o gallery.json
 
-          # 2. DEFINE YOUR KEYWORDS (Case-insensitive)
-          KEYWORDS="wh40k horus sigmar kill-team"
+          KEYWORDS="40k heresy sigmar kill-team"
 
           mkdir -p output
           
-          # 3. EXTRACT ID AND URL USING JQ
-          # We use -c to get one JSON object per line for easier looping
-          REPOS=$(cat gallery.json | jq -c '.repositories[]')
+          REPOS=$(cat gallery.json | jq -r '.repositories[].location')
 
-          while read -r REPO_OBJ; do
-            ID=$(echo $REPO_OBJ | jq -r '.name')
-            # Extract the base GitHub URL from the download link
-            # Transforms: .../BSData/repo/releases/... -> https://github.com/BSData/repo
-            URL=$(echo $REPO_OBJ | jq -r '.repositoryUrl' | sed 's/\/releases\/latest\/download\/.*//')
-
-            # Filter Logic
+          for REPO_PATH in $REPOS; do
             MATCH=false
             for KW in $KEYWORDS; do
-              if [[ "${ID,,}" == *"$KW"* ]]; then MATCH=true; fi
+              if [[ "${REPO_PATH,,}" == *"$KW"* ]]; then MATCH=true; fi
             done
 
             if [ "$MATCH" = true ]; then
-              echo "::group::Processing $ID"
-              echo "Source: $URL"
+              REPO_NAME=$(echo $REPO_PATH | cut -d'/' -f2)
+              echo "::group::Processing $REPO_PATH"
               
-              # Clone and Shape
-              git clone --depth 1 $URL temp_rules
-              python shaper.py --source temp_rules --output output/$ID.db --id $ID
+              git clone --depth 1 https://github.com/$REPO_PATH.git temp_rules
+              python shaper.py --source temp_rules --output output/$REPO_NAME.db --id $REPO_NAME
               
               rm -rf temp_rules
               echo "::endgroup::"
             fi
-          done <<< "$REPOS"
+          done
+
+          python -c "import os, json, glob; files = glob.glob('output/*.db'); manifest = [{'repo': os.path.basename(f).replace('.db', ''), 'file': os.path.basename(f), 'size': os.path.getsize(f)} for f in files]; f = open('output/manifest.json', 'w'); json.dump({'snapshots': manifest}, f, indent=2); f.close()"
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
