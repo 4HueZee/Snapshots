@@ -3,22 +3,22 @@
     {
       "repo": "horus-heresy",
       "file": "horus-heresy.db",
-      "size": 16953344
+      "size": 16961536
     },
     {
       "repo": "wh40k-7th-edition",
       "file": "wh40k-7th-edition.db",
-      "size": 53047296
+      "size": 53055488
     },
     {
       "repo": "wh40k",
       "file": "wh40k.db",
-      "size": 36839424
+      "size": 36847616
     },
     {
       "repo": "wh40k-killteam",
       "file": "wh40k-killteam.db",
-      "size": 22339584
+      "size": 22347776
     }
   ]
 }
