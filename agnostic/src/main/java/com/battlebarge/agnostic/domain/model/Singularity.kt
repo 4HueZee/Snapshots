@@ -1,21 +1,39 @@
 package com.battlebarge.agnostic.domain.model
 
 /**
- * The fundamental atomic unit of the Battle Barge agnostic engine.
- * A Singularity can represent any game element: a unit, a rule, a stat, or an upgrade.
- *
- * @property id The unique identifier (usually from the source XML/GitHub).
- * @property name The display name of the element.
- * @property type The classification of the element (e.g., "unit", "stat", "weapon").
- * @property value An optional value associated with the element (e.g., the value of a "Strength" stat).
- * @property parentId The ID of the parent Singularity, maintaining the tree structure of the roster.
- * @property tags A list of metadata tags for filtering, grouping, and validation logic.
+ * The fundamental atomic unit of the Battle Barge engine.
+ * Refactored for Native XML Relational Architecture.
  */
 data class Singularity(
     val id: String,
     val name: String,
-    val type: String,
+    val xmlTag: String,
+    val entryType: String? = null,
     val value: String? = null,
     val parentId: String? = null,
-    val tags: List<String> = emptyList()
+    val targetId: String? = null,
+    val linkType: String? = null,
+    val category: String? = null,
+    val tags: List<String> = emptyList(),
+    
+    // Scoping & Passport fields
+    val gamesystemId: String,
+    val gamesystemName: String,
+    val factionId: String,
+    val factionName: String,
+    
+    // Argonaut State
+    val isAwakened: Boolean = false
+)
+
+/**
+ * Complete Tangible Unit Datasheet Module assembled predictably from raw SQLite rows.
+ */
+data class UnitDatasheetModule(
+    val unit: Singularity,
+    val physicalStats: Map<String, String>,
+    val mixedModelProfiles: Map<String, Map<String, String>> = emptyMap(),
+    val rangedWeapons: List<WeaponProfile> = emptyList(),
+    val meleeWeapons: List<WeaponProfile> = emptyList(),
+    val abilities: List<AbilityRule> = emptyList()
 )

@@ -7,27 +7,37 @@ import org.xmlpull.v1.XmlPullParser
 import java.io.InputStream
 
 /**
- * Result of a single parse operation, containing the entities and their tags.
- */
-data class SingularityParseResult(
-    val entities: List<SingularityEntity>,
-    val tags: List<SingularityTagEntity>
-)
-
-/**
  * A streaming XML parser that converts rule files into Singularities.
- * High-performance and low-memory because it doesn't load the entire tree into RAM.
+ * Uses relative interpretation of Battlescribe XML primary <categoryLink> specifications.
  */
 class SingularityParser {
 
+    private fun mapUniversalCategory(rawName: String?): String? {
+        if (rawName.isNullOrBlank()) return null
+        val u = rawName.uppercase().trim()
+        return when {
+            u == "HQ" || u.contains("CHARACTER") || u.contains("HERO") || u.contains("LEADER") || u.contains("WARLORD") || u.contains("COMMAND") -> "CHARACTERS"
+            u == "TROOPS" || u.contains("BATTLELINE") || u.contains("CORE") -> "BATTLELINE"
+            u.contains("TRANSPORT") -> "DEDICATED TRANSPORTS"
+            else -> rawName.trim()
+        }
+    }
+
     /**
-     * Parses the [InputStream] into a list of [SingularityEntity] and [SingularityTagEntity].
-     *
-     * @param inputStream The XML stream to parse.
+     * Parses the [InputStream] and calls [onBatchReady] with chunks of entities.
+     * Extracts 'targetId', 'type' (linkType), and primary '<categoryLink>' for universal category mapping.
      */
-    fun parse(inputStream: InputStream): SingularityParseResult {
-        val entities = mutableListOf<SingularityEntity>()
-        val tags = mutableListOf<SingularityTagEntity>()
+    suspend fun parseInBatches(
+        inputStream: InputStream,
+        gamesystemId: String,
+        gamesystemName: String,
+        factionId: String,
+        factionName: String,
+        batchSize: Int = 500,
+        onBatchReady: suspend (List<SingularityEntity>, List<SingularityTagEntity>) -> Unit
+    ) {
+        val currentEntities = mutableListOf<SingularityEntity>()
+        val currentTags = mutableListOf<SingularityTagEntity>()
         
         val parser = Xml.newPullParser()
         parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
@@ -35,6 +45,10 @@ class SingularityParser {
 
         var eventType = parser.eventType
         val idStack = mutableListOf<String>()
+        val tagStack = mutableListOf<String>()
+
+        var currentFactionId = factionId
+        var currentFactionName = factionName
 
         while (eventType != XmlPullParser.END_DOCUMENT) {
             when (eventType) {
@@ -42,38 +56,85 @@ class SingularityParser {
                     val tagName = parser.name
                     val id = parser.getAttributeValue(null, "id")
                     val name = parser.getAttributeValue(null, "name")
+
+                    // Capture exact numerical/GUID faction ID and name from root catalogue or gameSystem tag
+                    if ((tagName == "catalogue" || tagName == "gameSystem") && id != null) {
+                        currentFactionId = id.trim()
+                        if (!name.isNullOrBlank()) {
+                            currentFactionName = name.trim()
+                        }
+                    }
                     
-                    if (id != null && name != null) {
-                        val parentId = if (idStack.isNotEmpty()) idStack.last() else null
+                    if (id != null) {
+                        val parentId = idStack.lastOrNull()
+                        val targetId = parser.getAttributeValue(null, "targetId")
+                        val linkType = parser.getAttributeValue(null, "type")
                         
-                        entities.add(
+                        // ID Normalization: trim to ensure matching across sources
+                        val normalizedId = id.trim()
+                        val normalizedTargetId = targetId?.trim()
+
+                        // Extract category context from name, linkType, or category attributes
+                        var category = mapUniversalCategory(name) ?: mapUniversalCategory(linkType)
+
+                        if (tagName == "categoryLink") {
+                            val catName = name ?: parser.getAttributeValue(null, "targetId")
+                            val isPrimary = parser.getAttributeValue(null, "primary") == "true"
+                            val mappedCat = mapUniversalCategory(catName)
+                            if (mappedCat != null && (isPrimary || category == null)) {
+                                category = mappedCat
+                            }
+                        }
+
+                        currentEntities.add(
                             SingularityEntity(
-                                id = id,
-                                name = name,
-                                type = tagName,
+                                id = normalizedId,
+                                gamesystemId = gamesystemId,
+                                gamesystemName = gamesystemName,
+                                factionId = currentFactionId,
+                                factionName = currentFactionName,
+                                name = name ?: tagName,
+                                xmlTag = tagName,
                                 value = parser.getAttributeValue(null, "value"),
-                                parentId = parentId
+                                parentId = parentId,
+                                targetId = normalizedTargetId,
+                                linkType = linkType,
+                                category = category
                             )
                         )
                         
-                        // Example tag extraction: If the XML tag itself is a classification
-                        tags.add(SingularityTagEntity(id, tagName))
+                        currentTags.add(
+                            SingularityTagEntity(
+                                gamesystemId = gamesystemId,
+                                factionId = currentFactionId,
+                                singularityId = normalizedId,
+                                tag = tagName
+                            )
+                        )
                         
-                        idStack.add(id)
+                        idStack.add(normalizedId)
+                        tagStack.add(tagName)
+
+                        if (currentEntities.size >= batchSize) {
+                            onBatchReady(currentEntities.toList(), currentTags.toList())
+                            currentEntities.clear()
+                            currentTags.clear()
+                        }
                     }
                 }
                 XmlPullParser.END_TAG -> {
-                    // Pop from the stack only if the tag had an ID (meaning we pushed it)
-                    // Note: This logic is simplified; a robust parser needs to track tag names
-                    // for more complex nested rules.
-                    if (parser.getAttributeValue(null, "id") != null) {
-                        if (idStack.isNotEmpty()) idStack.removeAt(idStack.size - 1)
+                    val tagName = parser.name
+                    if (tagStack.lastOrNull() == tagName) {
+                        tagStack.removeAt(tagStack.size - 1)
+                        idStack.removeAt(idStack.size - 1)
                     }
                 }
             }
             eventType = parser.next()
         }
 
-        return SingularityParseResult(entities, tags)
+        if (currentEntities.isNotEmpty()) {
+            onBatchReady(currentEntities, currentTags)
+        }
     }
 }

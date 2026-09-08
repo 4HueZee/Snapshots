@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<catalogue id="1234" name="Agnostic Test Army" revision="1">
-  <entry id="unit-01" name="Battle Barge Knight" value="400">
-    <tag name="Heavy Support"/>
-    <entry id="weapon-01" name="Plasma Cannon" value="50">
-       <tag name="Ranged"/>
-    </entry>
-  </entry>
-</catalogue>

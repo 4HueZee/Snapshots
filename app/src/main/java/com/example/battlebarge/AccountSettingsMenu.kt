@@ -14,12 +14,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.battlebarge.engine.EngineCore
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.launch
 
 enum class SettingsView {
-    Home, Profile, Theme, Notifications, Privacy, Help, Upgrade
+    Home, Profile, Theme, Notifications, Privacy, Help, Upgrade, System
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -141,6 +144,7 @@ fun AccountSettingsMenu(
                             SettingsView.Privacy -> PrivacySecuritySection()
                             SettingsView.Help -> HelpSupportSection()
                             SettingsView.Upgrade -> AccountUpgradeSection(onSuccess = { currentSettingsView = SettingsView.Home })
+                            SettingsView.System -> SystemSettingsSection()
                             else -> {
                                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                     Text("Section under development")
@@ -196,6 +200,13 @@ fun SettingsHomeView(
             )
         }
         item {
+            SettingsListItem(
+                title = "System & Storage",
+                icon = Icons.Default.Settings,
+                onClick = { onNavigate(SettingsView.System) }
+            )
+        }
+        item {
             HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
             ListItem(
                 headlineContent = { 
@@ -230,4 +241,99 @@ fun SettingsListItem(
         trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) },
         modifier = Modifier.clickable { onClick() }
     )
+}
+
+@Composable
+fun SystemSettingsSection() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    
+    val singularityRepo = EngineCore.provideRepository(context)
+    val argonautRepo = EngineCore.provideArgonautRepository(context)
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            Text(
+                "Storage & Cache",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+            
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "Rules Cache",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        "This will delete all downloaded .gst and .cat files. You will need to re-download them to browse the codex.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                singularityRepo.clearCache().onSuccess {
+                                    snackbarHostState.showSnackbar("Rules cache cleared")
+                                }.onFailure {
+                                    snackbarHostState.showSnackbar("Error: ${it.message}")
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Erase Rules Cache")
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "User Database",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        "This will delete all your custom rosters and Argonauts. This action is permanent.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                argonautRepo.clearAllUserData().onSuccess {
+                                    snackbarHostState.showSnackbar("User database wiped")
+                                }.onFailure {
+                                    snackbarHostState.showSnackbar("Error: ${it.message}")
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Wipe User Database")
+                    }
+                }
+            }
+        }
+        
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
+    }
 }

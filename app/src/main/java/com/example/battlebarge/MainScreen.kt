@@ -2,14 +2,29 @@ package com.example.battlebarge
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.battlebarge.engine.EngineCore
+import com.example.battlebarge.ui.engine.ArmyListsTab
+import com.example.battlebarge.ui.engine.ArmyListsViewModel
+import com.example.battlebarge.ui.engine.GameSystemsTab
+import com.example.battlebarge.ui.engine.GameSystemsViewModel
+import com.example.battlebarge.ui.engine.LibraryHubView
+
+enum class NavigationHub {
+    ENGINES,   // 🛡️ Catalogues & Engines Hub
+    BUILDER,   // ⚔️ Army Builder Workspace
+    LIBRARY    // 🎨 Model Collection & Painting Library System Placeholder
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -17,20 +32,32 @@ fun MainScreen(
     onNavigateToSocial: () -> Unit,
     onNavigateToAccount: () -> Unit
 ) {
-    val profile by UserRepository.userProfileFlow.collectAsState()
-    val firestoreUsername = profile?.username
+    var activeHub by remember { mutableStateOf(NavigationHub.ENGINES) }
+    var inspectingRosterId by remember { mutableStateOf<String?>(null) }
 
-    val userDisplayName = when {
-        !firestoreUsername.isNullOrBlank() -> firestoreUsername
-        profile == null -> "Initializing..."
-        else -> "Authenticating..."
-    }
+    val context = LocalContext.current
+    val repository = remember(context) { EngineCore.provideRepository(context) }
+    val argonautRepository = remember(context) { EngineCore.provideArgonautRepository(context) }
+
+    val gamesViewModel: GameSystemsViewModel = viewModel(
+        factory = GameSystemsViewModel.Factory(repository, context)
+    )
+    val listsViewModel: ArmyListsViewModel = viewModel(
+        factory = ArmyListsViewModel.Factory(repository, argonautRepository)
+    )
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("BATTLEBARGE") },
+                title = { 
+                    Text(
+                        text = "BATTLEBARGE",
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 2.sp
+                    ) 
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateToSocial) {
                         Icon(
@@ -49,69 +76,84 @@ fun MainScreen(
                     }
                 }
             )
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp
+            ) {
+                NavigationBarItem(
+                    selected = activeHub == NavigationHub.ENGINES,
+                    onClick = {
+                        inspectingRosterId = null
+                        activeHub = NavigationHub.ENGINES
+                    },
+                    icon = { Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = "Catalogues & Engines") },
+                    label = { 
+                        Text(
+                            "ENGINES", 
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        ) 
+                    }
+                )
+
+                NavigationBarItem(
+                    selected = activeHub == NavigationHub.BUILDER,
+                    onClick = {
+                        activeHub = NavigationHub.BUILDER
+                    },
+                    icon = { Icon(Icons.Default.Build, contentDescription = "Army Builder") },
+                    label = { 
+                        Text(
+                            "BUILDER", 
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        ) 
+                    }
+                )
+
+                NavigationBarItem(
+                    selected = activeHub == NavigationHub.LIBRARY,
+                    onClick = {
+                        inspectingRosterId = null
+                        activeHub = NavigationHub.LIBRARY
+                    },
+                    icon = { Icon(Icons.Default.Palette, contentDescription = "Model Library") },
+                    label = { 
+                        Text(
+                            "LIBRARY", 
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        ) 
+                    }
+                )
+            }
         }
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
         ) {
-            Text(
-                text = "Welcome",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
-            )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Text(
-                text = "Hello, $userDisplayName!",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            // Bio Display (Only if not blank)
-            val userBio = profile?.bio
-            if (!userBio.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "\"$userBio\"",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = "This is your main dashboard.",
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Button(
-                    onClick = onNavigateToSocial,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Social Hub")
+            when (activeHub) {
+                NavigationHub.ENGINES -> {
+                    GameSystemsTab(gamesViewModel = gamesViewModel)
                 }
-                
-                OutlinedButton(
-                    onClick = onNavigateToAccount,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Account")
+                NavigationHub.BUILDER -> {
+                    ArmyListsTab(
+                        listsViewModel = listsViewModel,
+                        inspectingRosterId = inspectingRosterId,
+                        onInspectRoster = { inspectingRosterId = it },
+                        repository = repository,
+                        argonautRepository = argonautRepository
+                    )
+                }
+                NavigationHub.LIBRARY -> {
+                    LibraryHubView()
                 }
             }
         }

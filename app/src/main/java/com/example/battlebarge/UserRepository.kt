@@ -31,6 +31,9 @@ object UserRepository {
     private var cachedProfile: UserProfile? = null
     @Volatile
     private var currentUid: String? = null
+    
+    // Tracks active initialization jobs to prevent loops
+    private val initializationJobs = mutableMapOf<String, Job>()
 
     /**
      * Exposes the current authentication state as a Flow of UIDs.
@@ -66,21 +69,42 @@ object UserRepository {
     }
 
     private fun observeProfile(uid: String): Flow<UserProfile?> = callbackFlow {
+        Log.d(TAG, "Starting observation for UID: $uid")
         val docRef = db.collection("users").document(uid)
         val registration = docRef.addSnapshotListener { snapshot, error ->
             if (error != null) {
-                Log.e(TAG, "Error observing profile", error)
+                Log.e(TAG, "Error observing profile for $uid", error)
                 return@addSnapshotListener
             }
             
-            val profile = snapshot?.toObject(UserProfile::class.java)?.copy(uid = uid)
-            if (auth.currentUser?.uid == uid) {
-                cachedProfile = profile
-                currentUid = uid
-                trySend(profile)
+            if (snapshot != null && snapshot.exists()) {
+                val profile = snapshot.toObject(UserProfile::class.java)?.copy(uid = uid)
+                Log.d(TAG, "Profile received for $uid: ${profile?.username}")
+                if (auth.currentUser?.uid == uid) {
+                    cachedProfile = profile
+                    currentUid = uid
+                    trySend(profile)
+                }
+            } else {
+                Log.w(TAG, "Profile snapshot does not exist for $uid.")
+                val currentAuthUid = auth.currentUser?.uid
+                if (currentAuthUid == uid) {
+                    synchronized(initializationJobs) {
+                        if (initializationJobs[uid]?.isActive != true) {
+                            Log.w(TAG, "Triggering one-time initialization job for $uid")
+                            initializationJobs[uid] = repositoryScope.launch {
+                                initializeThemedProfile()
+                            }
+                        }
+                    }
+                }
+                trySend(null)
             }
         }
-        awaitClose { registration.remove() }
+        awaitClose { 
+            Log.d(TAG, "Closing observation for UID: $uid")
+            registration.remove() 
+        }
     }
 
     /**

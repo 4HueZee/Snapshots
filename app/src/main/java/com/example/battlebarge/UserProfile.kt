@@ -14,7 +14,7 @@ data class UserProfile(
     val bio: String = "",
     val region: String = "NA",
     @get:PropertyName("isPublic") @set:PropertyName("isPublic") var isPublic: Boolean = true,
-    val isOnline: Boolean = false,
+    @get:PropertyName("isOnline") @set:PropertyName("isOnline") var isOnline: Boolean = false,
     val presenceStatus: String = "OFFLINE",
     val lastActive: Timestamp? = null,
     val createdAt: Timestamp? = null

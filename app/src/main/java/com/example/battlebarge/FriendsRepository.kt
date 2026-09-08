@@ -1,5 +1,6 @@
 package com.example.battlebarge
 
+import android.util.Log
 import com.google.firebase.firestore.FieldValue
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -38,7 +39,8 @@ object FriendsRepository {
             val friendsSubListener = db.collection("users").document(uid).collection("friends")
                 .addSnapshotListener { snapshot, error ->
                     if (error != null) {
-                        close(error)
+                        Log.e("FriendsRepository", "Friends Flow Error: ${error.message}")
+                        trySend(emptyList())
                         return@addSnapshotListener
                     }
                     val friendIds = snapshot?.documents?.map { it.id } ?: emptyList()
@@ -81,7 +83,9 @@ object FriendsRepository {
                 .whereEqualTo("status", "pending")
                 .addSnapshotListener { snapshot, error ->
                     if (error != null) {
-                        close(error)
+                        Log.e("FriendsRepository", "Requests Flow Error: ${error.message}")
+                        // Don't close the flow, just send empty to keep UI stable
+                        trySend(emptyList())
                         return@addSnapshotListener
                     }
                     val requests = snapshot?.documents?.map { doc ->

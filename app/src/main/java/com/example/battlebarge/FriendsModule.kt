@@ -1,5 +1,6 @@
 package com.example.battlebarge
 
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,74 +31,105 @@ fun SocialMenu(
 ) {
     val navigator = rememberListDetailPaneScaffoldNavigator<UserProfile>()
     val scope = rememberCoroutineScope()
+    
+    // Safety check: Ensure we handle unauthorized states gracefully
+    val auth = BargeDatabase.auth
+    val currentUser = auth.currentUser
+    
+    // REMOVED aggressive LaunchedEffect dismissal to prevent flickering soft-locks
+    if (currentUser == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
+    }
 
-    ListDetailPaneScaffold(
-        directive = navigator.scaffoldDirective,
-        value = navigator.scaffoldValue,
-        listPane = {
-            AnimatedPane {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        TopAppBar(
-                            title = { Text("Social") },
-                            navigationIcon = {
-                                IconButton(onClick = {
-                                    if (navigator.canNavigateBack()) {
-                                        scope.launch { navigator.navigateBack() }
-                                    } else {
-                                        onDismiss()
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
+    ) {
+        Log.d("SocialMenu", "Rendering ListDetailPaneScaffold. Value: ${navigator.scaffoldValue}")
+        Scaffold(
+            modifier = Modifier.fillMaxSize()
+        ) { innerPadding ->
+            ListDetailPaneScaffold(
+                modifier = Modifier.fillMaxSize().padding(innerPadding),
+                directive = navigator.scaffoldDirective,
+                value = navigator.scaffoldValue,
+                listPane = {
+                    AnimatedPane {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            color = MaterialTheme.colorScheme.background
+                        ) {
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                TopAppBar(
+                                    title = { Text("Social Hub") },
+                                    navigationIcon = {
+                                        IconButton(onClick = {
+                                            if (navigator.canNavigateBack()) {
+                                                scope.launch { navigator.navigateBack() }
+                                            } else {
+                                                onDismiss()
+                                            }
+                                        }) {
+                                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                                        }
+                                    },
+                                    colors = TopAppBarDefaults.topAppBarColors(
+                                        containerColor = MaterialTheme.colorScheme.surface,
+                                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                                        navigationIconContentColor = MaterialTheme.colorScheme.primary
+                                    )
+                                )
+                                
+                                FriendsSection(onFriendClick = { friend ->
+                                    scope.launch {
+                                        navigator.navigateTo(androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldRole.Detail, friend)
                                     }
-                                }) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                                }
-                            },
-                            colors = TopAppBarDefaults.topAppBarColors(
-                                containerColor = MaterialTheme.colorScheme.surface,
-                                titleContentColor = MaterialTheme.colorScheme.onSurface,
-                                navigationIconContentColor = MaterialTheme.colorScheme.primary
-                            )
-                        )
-                        
-                        FriendsSection(onFriendClick = { friend ->
-                            scope.launch {
-                                navigator.navigateTo(androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldRole.Detail, friend)
+                                })
                             }
-                        })
+                        }
+                    }
+                },
+                detailPane = {
+                    AnimatedPane {
+                        FriendDetail(
+                            friend = navigator.currentDestination?.contentKey,
+                            onBack = { scope.launch { navigator.navigateBack() } },
+                            isDetailOnly = navigator.scaffoldValue[androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldRole.List] == PaneAdaptedValue.Hidden
+                        )
                     }
                 }
-            }
-        },
-        detailPane = {
-            AnimatedPane {
-                FriendDetail(
-                    friend = navigator.currentDestination?.contentKey,
-                    onBack = { scope.launch { navigator.navigateBack() } },
-                    isDetailOnly = navigator.scaffoldValue[androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldRole.List] == PaneAdaptedValue.Hidden
-                )
-            }
+            )
         }
-    )
+    }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FriendDetail(
     friend: UserProfile?,
     onBack: () -> Unit,
     isDetailOnly: Boolean
 ) {
+    Log.d("FriendDetail", "Rendering detail for: ${friend?.username}. isDetailOnly: $isDetailOnly")
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.surfaceVariant
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            if (isDetailOnly) {
-                IconButton(onClick = onBack, modifier = Modifier.padding(16.dp)) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
-                }
-            }
+            CenterAlignedTopAppBar(
+                title = { Text(friend?.username ?: "Operative Detail") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            )
             
             if (friend == null) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -183,6 +215,29 @@ fun FriendsSection(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 16.dp)
     ) {
+        // Dynamic Help Card for first-time users / configuration issues
+        if (friends.isEmpty() && requests.isEmpty() && !isSearching) {
+            item {
+                Card(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "Awaiting Connection...",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "If this screen stays blank, ensure Cloud Firestore is enabled in your Firebase Console and Rules are published.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            }
+        }
+        
         item {
             Spacer(modifier = Modifier.height(8.dp))
             // Search Bar

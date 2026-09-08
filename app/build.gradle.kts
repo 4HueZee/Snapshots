@@ -71,4 +71,12 @@ dependencies {
 
     // Agnostic Roster Integration
     implementation(project(":agnostic"))
+
+    // Engine Dependencies
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.gson)
+    implementation(libs.okhttp)
+    implementation(libs.androidx.work.runtime.ktx)
 }
