@@ -1,0 +1,47 @@
+name: Auto-Discover and Publish Snapshots
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Daily at midnight
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Proxy Repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Discover and Process Repositories
+        run: |
+          mkdir -p output
+
+          # Verified Exact GitHub Repository Slugs
+          REPOS="BSData/wh40k-10th BSData/wh40k-7th-edition BSData/horus-heresy-2nd-edition BSData/warhammer-aos BSData/wh40k-killteam BSData/blood-bowl BSData/mesbg BSData/opr-grimdark-future"
+
+          for REPO_PATH in $REPOS; do
+            REPO_NAME=$(echo $REPO_PATH | cut -d'/' -f2)
+            echo "::group::Processing $REPO_PATH"
+            
+            rm -rf temp_rules
+            git clone --depth 1 https://github.com/$REPO_PATH.git temp_rules || { echo "Failed to clone $REPO_PATH, skipping..."; continue; }
+            
+            python shaper.py --source temp_rules --output output/$REPO_NAME.db --id $REPO_NAME
+            
+            rm -rf temp_rules
+            echo "::endgroup::"
+          done
+
+          python -c "import os, json, glob; files = glob.glob('output/*.db'); manifest = [{'repo': os.path.basename(f).replace('.db', ''), 'file': os.path.basename(f), 'size': os.path.getsize(f)} for f in files]; f = open('output/manifest.json', 'w'); json.dump({'snapshots': manifest}, f, indent=2); f.close()"
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./output
+          publish_branch: gh-pages
