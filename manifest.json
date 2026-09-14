@@ -1,24 +1,19 @@
 {
   "snapshots": [
     {
-      "repo": "horus-heresy",
-      "file": "horus-heresy.db",
-      "size": 16961536
+      "repo": "horus-heresy-2nd-edition",
+      "file": "horus-heresy-2nd-edition.db",
+      "size": 19152896
     },
     {
       "repo": "wh40k-7th-edition",
       "file": "wh40k-7th-edition.db",
-      "size": 53055488
-    },
-    {
-      "repo": "wh40k",
-      "file": "wh40k.db",
-      "size": 36847616
+      "size": 53075968
     },
     {
       "repo": "wh40k-killteam",
       "file": "wh40k-killteam.db",
-      "size": 22347776
+      "size": 22421504
     }
   ]
 }
